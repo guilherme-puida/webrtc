@@ -1,0 +1,61 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  min-height: 100vh;
+}
+
+input,
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+video {
+  display: block;
+  max-width: 100%;
+}
+
+span {
+  font-family: monospace;
+  font-weight: bold;
+}
+
+#remote-videos {
+  display: flex;
+}
+
+#remote-videos div {
+  border: 1px solid #ccc;
+  padding: 1rem;
+}
+
+#remote-videos p {
+  font-size: small;
+  margin: 0;
+}
+
+#chat-container {
+  width: 100vw;
+  background: #f9f9f9;
+  border: 1px solid #ccc;
+  padding: 10px;
+}
+
+#chat-box {
+  height: 150px;
+  overflow-y: scroll;
+  background: #fff;
+  margin-bottom: 10px;
+  padding: 5px;
+  border: 1px solid #ccc;
+}
+
+#chat-box p {
+  margin-block: 0;
+}

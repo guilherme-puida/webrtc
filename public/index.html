@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/style.css">
+  <title>WebRTC Chat</title>
+</head>
+
+<body>
+  <div>
+    <input type="text" id="room-input" placeholder="Room ID">
+    <button id="join" disabled>Join</button>
+
+    <button id="toggle-audio" disabled>Disable Audio</button>
+    <button id="toggle-video" disabled>Disable Video</button>
+    <button id="toggle-share" disabled>Start Sharing</button>
+  </div>
+
+  <div id="remote-videos">
+    <div>
+      <p id="local-video-title" class="video-title"></p>
+      <video id="local-video" autoplay muted></video>
+    </div>
+  </div>
+
+  <div id="chat-container">
+    <div id="chat-box"></div>
+    <form id="chat-form">
+      <input type="text" id="chat-input" placeholder="Type a message" autocomplete="off" disabled>
+    </form>
+  </div>
+
+  <script src="/main.js"></script>
+</body>
+
+</html>
