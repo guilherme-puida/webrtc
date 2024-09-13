@@ -28,95 +28,133 @@ const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 const wsUrl = wsProtocol + "//" + window.location.host + "/ws";
 const signalingSocket = new WebSocket(wsUrl);
 
-signalingSocket.onmessage = async (event) => {
-  const data = JSON.parse(event.data);
+function send(payload) {
+  signalingSocket.send(JSON.stringify(payload));
+}
 
-  if (data.type === "chat-message") {
-    appendMessage(data.uid, data.message);
-  } else if (data.type === "new-peer") {
-    if (!peerConnections[data.uid]) {
-      createPeerConnection(data.uid);
-    }
-  } else if (data.type === "peer-left") {
-    const remoteVideo = $("#" + makeVideoId(data.uid));
-    if (remoteVideo) {
-      remoteVideo.remove();
-    }
-  } else if (data.type === "offer") {
-    if (!peerConnections[data.uid]) {
-      createPeerConnection(data.uid);
-    }
+async function newPeerHandler(data) {
+  if (!peerConnections[data.uid]) {
+    createPeerConnection(data.uid);
+  }
+}
 
-    const peerConnection = peerConnections[data.uid];
-    if (
-      peerConnection.signalingState === "stable" ||
-      peerConnection.signalingState === "have-remote-offer"
-    ) {
-      await peerConnection.setRemoteDescription(
-        new RTCSessionDescription(data.sdp)
-      );
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      signalingSocket.send(
-        JSON.stringify({
-          type: "answer",
-          sdp: answer,
-          uid: uid,
-        })
-      );
+async function peerLeftHandler(data) {
+  const remoteVideo = $("#" + makeVideoId(data.uid));
+  remoteVideo?.remove();
+}
 
-      if (iceCandidateQueue[data.uid]) {
-        while (iceCandidateQueue[data.uid].length) {
-          const candidate = iceCandidateQueue[data.uid].shift();
-          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-      }
-    }
-  } else if (data.type === "answer" && peerConnections[data.uid]) {
-    await peerConnections[data.uid].setRemoteDescription(
+async function chatMessageHandler(data) {
+  appendMessage(data.uid, data.message);
+}
+
+async function handleOffer(data) {
+  if (!peerConnections[data.uid]) {
+    createPeerConnection(data.uid);
+  }
+
+  const peerConnection = peerConnections[data.uid];
+  const peerState = peerConnection.signalingState;
+  if (peerState !== "stable" && peerState !== "have-remote-offer") {
+    console.log(`skipping offer, invalid signaling state ${peerState}`);
+    return;
+  }
+
+  if (peerState === "have-local-offer") {
+    await peerConnection.setLocalDescription({ type: "rollback" });
+  }
+
+  try {
+    await peerConnection.setRemoteDescription(
       new RTCSessionDescription(data.sdp)
     );
 
-    if (iceCandidateQueue[data.uid]) {
-      while (iceCandidateQueue[data.uid].length) {
-        const candidate = iceCandidateQueue[data.uid].shift();
-        await peerConnections[data.uid].addIceCandidate(
-          new RTCIceCandidate(candidate)
-        );
-      }
-    }
-  } else if (
-    data.type === "ice-candidate" &&
-    data.candidate &&
-    peerConnections[data.uid]
-  ) {
-    const peerConnection = peerConnections[data.uid];
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
 
-    if (
-      peerConnection.remoteDescription &&
-      peerConnection.remoteDescription.type
-    ) {
+    send({ type: "answer", sdp: answer, uid: uid, target: data.uid });
+
+    while (iceCandidateQueue[data.uid]?.length) {
+      const candidate = iceCandidateQueue[data.uid].shift();
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  } catch (error) {
+    console.error("failed to handle offer", error);
+  }
+}
+
+async function handleAnswer(data) {
+  const peerConnection = peerConnections[data.uid];
+  if (!peerConnection) return;
+
+  if (peerConnection.signalingState !== "have-local-offer") {
+    console.log(
+      `skipping answer, invalid signaling state: ${peerConnection.signalingState}`
+    );
+    return;
+  }
+
+  try {
+    await peerConnection.setRemoteDescription(
+      new RTCSessionDescription(data.sdp)
+    );
+
+    while (iceCandidateQueue[data.uid]?.length) {
+      const candidate = iceCandidateQueue[data.uid].shift();
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  } catch (error) {
+    console.error("failed to handle answer: ", error);
+  }
+}
+
+async function handleIceCandidate(data) {
+  const peerConnection = peerConnections[data.uid];
+  if (!peerConnection || !data.candidate) return;
+
+  if (peerConnection.remoteDescription?.type) {
+    try {
       await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-    } else {
-      if (!iceCandidateQueue[data.uid]) {
-        iceCandidateQueue[data.uid] = [];
-      }
-
-      iceCandidateQueue[data.uid].push(data.candidate);
+    } catch (error) {
+      console.error("error adding ICE candidate", error);
     }
+    return;
+  }
+
+  if (!iceCandidateQueue[data.uid]) {
+    iceCandidateQueue[data.uid] = [];
+  }
+
+  iceCandidateQueue[data.uid].push(data.candidate);
+}
+
+const wsHandlers = {
+  "new-peer": newPeerHandler,
+  "peer-left": peerLeftHandler,
+  "offer": handleOffer,
+  "answer": handleAnswer,
+  "ice-candidate": handleIceCandidate,
+};
+
+signalingSocket.onmessage = async (event) => {
+  const data = JSON.parse(event.data);
+  try {
+    if (!data.target || data.target === uid) {
+      await wsHandlers[data.type](data);
+    }
+  } catch (error) {
+    console.error(`failed to handle message for type ${data.type}`, error);
   }
 };
 
 joinRoomButton.onclick = () => {
   const roomId = roomInput.value;
-  signalingSocket.send(
-    JSON.stringify({ type: "join", roomId: roomId, uid: uid })
-  );
+  send({ type: "join", roomId: roomId, uid: uid });
+
   joinRoomButton.disabled = true;
   roomInput.disabled = true;
+  chatInput.disabled = false;
 
   document.title = roomId;
-  chatInput.disabled = false;
 };
 
 async function initLocalStream() {
@@ -143,13 +181,12 @@ function createPeerConnection(remoteUid) {
 
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
-      signalingSocket.send(
-        JSON.stringify({
-          type: "ice-candidate",
-          candidate: event.candidate,
-          uid: uid,
-        })
-      );
+      send({
+        type: "ice-candidate",
+        candidate: event.candidate,
+        uid: uid,
+        target: remoteUid,
+      });
     }
   };
 
@@ -161,7 +198,7 @@ function createPeerConnection(remoteUid) {
       v.autoplay = true;
 
       const vt = document.createElement("p");
-      vt.textContent = makeShortId(remoteUid);
+      vt.innerHTML = `<span>${makeShortId(remoteUid)}</span>`;
 
       const vd = document.createElement("div");
       vd.id = videoId;
@@ -179,17 +216,16 @@ function createPeerConnection(remoteUid) {
   peerConnections[remoteUid] = peerConnection;
 
   setTimeout(async () => {
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    peerConnection.createOffer().then((offer) => {
-      signalingSocket.send(
-        JSON.stringify({
-          type: "offer",
-          sdp: offer,
-          uid: uid,
-        })
-      );
-    });
+    if (peerConnection.signalingState === "stable") {
+      const offer = await peerConnection.createOffer({ iceRestart: true });
+      await peerConnection.setLocalDescription(offer);
+      send({
+        type: "offer",
+        sdp: offer,
+        uid: uid,
+        target: remoteUid,
+      });
+    }
   }, 100);
 
   return peerConnection;
@@ -273,13 +309,11 @@ chatForm.onsubmit = (event) => {
   const message = chatInput.value;
 
   if (message.trim()) {
-    signalingSocket.send(
-      JSON.stringify({
-        type: "chat-message",
-        uid: uid,
-        message: message,
-      })
-    );
+    send({
+      type: "chat-message",
+      uid: uid,
+      message: message,
+    });
 
     chatInput.value = "";
   }

@@ -11,6 +11,7 @@ type Room = {
 };
 
 const rooms = new Map<string, Room>();
+let debugWs: WebSocket | null = null;
 
 function broadcast(roomId: string, message: string, excludeWs?: WebSocket) {
   const room = rooms.get(roomId);
@@ -20,6 +21,10 @@ function broadcast(roomId: string, message: string, excludeWs?: WebSocket) {
     if (ws !== excludeWs && ws.readyState === ws.OPEN) {
       ws.send(message);
     }
+  }
+
+  if (debugWs && debugWs.readyState === debugWs.OPEN) {
+    debugWs.send(message);
   }
 }
 
@@ -71,6 +76,13 @@ router.get("/ws", (ctx) => {
 
     room.peers = room.peers.filter((p) => p.ws !== ws);
     broadcast(roomId, JSON.stringify({ type: "peer-left", uid: uid }));
+  };
+});
+
+router.get("/ws/debug", (ctx) => {
+  debugWs = ctx.upgrade();
+  debugWs.onclose = () => {
+    debugWs = null;
   };
 });
 
