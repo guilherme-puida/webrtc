@@ -1,0 +1,21 @@
+app = 'webrtc-chat'
+primary_region = 'gig'
+
+[build]
+
+[env]
+PORT = '8080'
+
+[processes]
+app = 'run --allow-net --allow-read --allow-env ./server.ts'
+
+[http_service]
+inter = 8080
+force_https = true
+auto_stop_machines = 'stop'
+auto_start_machines = true
+min_machines_running = 0
+processes = ['app']
+
+[[vm]]
+size = 'shared-cpu-1x'

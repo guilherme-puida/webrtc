@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "dev": "deno run --allow-read --allow-net --watch server.ts"
+    "dev": "SECURE=1 deno run --allow-read --allow-net --allow-env --watch server.ts"
   },
   "imports": {
     "@oak/oak": "jsr:@oak/oak@^17.0.0",

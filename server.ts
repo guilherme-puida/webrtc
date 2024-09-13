@@ -1,4 +1,4 @@
-import { Application, Router } from "@oak/oak";
+import { Application, ListenOptions, Router } from "@oak/oak";
 
 type Peer = {
   uid: string;
@@ -83,9 +83,17 @@ app.use(async (ctx) => {
   });
 });
 
-await app.listen({
-  port: 8000,
-  secure: true,
-  cert: Deno.readTextFileSync("./tls/cert.pem"),
-  key: Deno.readTextFileSync("./tls/key.pem"),
-});
+const port = 8080;
+const options: ListenOptions = Deno.env.get("SECURE")
+  ? {
+      port,
+      secure: true,
+      cert: Deno.readTextFileSync("./tls/cert.pem"),
+      key: Deno.readTextFileSync("./tls/key.pem"),
+    }
+  : {
+      port,
+    };
+
+console.log("listening on http://0.0.0.0:8080");
+await app.listen(options);
