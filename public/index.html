@@ -4,32 +4,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebRTC</title>
   <link rel="stylesheet" href="/style.css">
-  <title>WebRTC Chat</title>
 </head>
 
 <body>
-  <div>
-    <input type="text" id="room-input" placeholder="Room ID">
-    <button id="join" disabled>Join</button>
-
-    <button id="toggle-audio" disabled>Disable Audio</button>
-    <button id="toggle-video" disabled>Disable Video</button>
-    <button id="toggle-share" disabled>Start Sharing</button>
-  </div>
-
-  <div id="remote-videos">
-    <div>
-      <p id="local-video-title" class="video-title"></p>
-      <video id="local-video" autoplay muted></video>
-    </div>
-  </div>
-
-  <div id="chat-container">
-    <div id="chat-box"></div>
-    <form id="chat-form">
-      <input type="text" id="chat-input" placeholder="Type a message" autocomplete="off" disabled>
+  <div id="start-page" class="page">
+    <form id="join-room-form" class="start-container">
+      <input type="text" name="room" placeholder="Enter room ID">
+      <button type="submit">Join Room</button>
     </form>
+  </div>
+
+  <div id="conference-page" class="page hidden">
+    <div id="chat-toggle" class="hidden">&#9776;</div>
+
+    <div id="chat-panel">
+      <div id="chat-header">
+        <span>Chat</span>
+        <button id="chat-close">&times;</button>
+      </div>
+
+      <div id="chat-messages"></div>
+
+      <form id="chat-form">
+        <input type="text" name="message" placeholder="..." autocomplete="off">
+        <button type="submit">Send</button>
+      </form>
+    </div>
+
+    <div id="video-container">
+      <div id="video-grid">
+        <div>
+          <p id="local-name"></p>
+          <video id="local-video" autoplay muted></video>
+        </div>
+      </div>
+    </div>
+
+    <div id="controls">
+      <button id="mute-btn">Mute</button>
+      <button id="stop-video-btn">Stop Video</button>
+      <button id="share-screen-btn">Share Screen</button>
+    </div>
   </div>
 
   <script src="/main.js"></script>

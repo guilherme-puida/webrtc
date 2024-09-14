@@ -1,3 +1,20 @@
+const $ = document.querySelector.bind(document);
+
+const $joinRoomForm = $("#join-room-form");
+const $startPage = $("#start-page");
+const $conferencePage = $("#conference-page");
+const $chatToggle = $("#chat-toggle");
+const $chatClose = $("#chat-close");
+const $chatMessages = $("#chat-messages");
+const $chatPanel = $("#chat-panel");
+const $chatForm = $("#chat-form");
+const $localVideo = $("#local-video");
+const $localName = $("#local-name");
+const $videoGrid = $("#video-grid");
+const $muteButton = $("#mute-btn");
+const $stopVideoButton = $("#stop-video-btn");
+const $shareScreenButton = $("#share-screen-btn");
+
 const makeVideoId = (uid) => `remote-video-${uid}`;
 const makeShortId = (uid) => uid.split("-")[0];
 
@@ -5,19 +22,6 @@ const uid = crypto.randomUUID();
 const peerConnections = {};
 const iceCandidateQueue = {};
 let localStream;
-
-const $ = document.querySelector.bind(document);
-
-const localVideo = $("#local-video");
-const remoteVideos = $("#remote-videos");
-const roomInput = $("#room-input");
-const joinRoomButton = $("#join");
-const toggleAudio = $("#toggle-audio");
-const toggleVideo = $("#toggle-video");
-const toggleShareScreen = $("#toggle-share");
-const chatInput = $("#chat-input");
-const chatForm = $("#chat-form");
-const chatBox = $("#chat-box");
 
 let isAudioEnabled = true;
 let isVideoEnabled = true;
@@ -41,6 +45,16 @@ async function newPeerHandler(data) {
 async function peerLeftHandler(data) {
   const remoteVideo = $("#" + makeVideoId(data.uid));
   remoteVideo?.remove();
+
+  iceCandidateQueue[data.uid] = [];
+  peerConnections[data.uid] = undefined;
+}
+
+function appendMessage(senderUid, message) {
+  const p = document.createElement("p");
+  p.innerHTML = `<span>${makeShortId(senderUid)}</span>: ${message}`;
+  $chatMessages.appendChild(p);
+  $chatMessages.scrollTop = $chatMessages.scrollHeight;
 }
 
 async function chatMessageHandler(data) {
@@ -128,6 +142,7 @@ async function handleIceCandidate(data) {
 }
 
 const wsHandlers = {
+  "chat-message": chatMessageHandler,
   "new-peer": newPeerHandler,
   "peer-left": peerLeftHandler,
   "offer": handleOffer,
@@ -135,7 +150,7 @@ const wsHandlers = {
   "ice-candidate": handleIceCandidate,
 };
 
-signalingSocket.onmessage = async (event) => {
+signalingSocket.addEventListener("message", async (event) => {
   const data = JSON.parse(event.data);
   try {
     if (!data.target || data.target === uid) {
@@ -144,26 +159,7 @@ signalingSocket.onmessage = async (event) => {
   } catch (error) {
     console.error(`failed to handle message for type ${data.type}`, error);
   }
-};
-
-joinRoomButton.onclick = () => {
-  const roomId = roomInput.value;
-  send({ type: "join", roomId: roomId, uid: uid });
-
-  joinRoomButton.disabled = true;
-  roomInput.disabled = true;
-  chatInput.disabled = false;
-
-  document.title = roomId;
-};
-
-async function initLocalStream() {
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true,
-  });
-  localVideo.srcObject = localStream;
-}
+});
 
 function createPeerConnection(remoteUid) {
   const peerConnection = new RTCPeerConnection({
@@ -205,7 +201,7 @@ function createPeerConnection(remoteUid) {
 
       vd.appendChild(vt);
       vd.appendChild(v);
-      remoteVideos.appendChild(vd);
+      $videoGrid.appendChild(vd);
     }
   };
 
@@ -231,25 +227,71 @@ function createPeerConnection(remoteUid) {
   return peerConnection;
 }
 
-toggleAudio.onclick = () => {
+$joinRoomForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const { room } = $joinRoomForm.elements;
+  if (room) {
+    $startPage.classList.add("hidden");
+    $conferencePage.classList.remove("hidden");
+
+    document.title = room.value + " - WebRTC";
+
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
+    $localVideo.srcObject = localStream;
+
+    $localName.innerHTML = `<span>${makeShortId(uid)}</span> (you)`;
+    send({ type: "join", roomId: room.value, uid: uid });
+  }
+});
+
+$chatToggle.addEventListener("click", () => {
+  $chatPanel.classList.remove("hidden");
+  $chatToggle.classList.add("hidden");
+});
+
+$chatClose.addEventListener("click", () => {
+  $chatPanel.classList.add("hidden");
+  $chatToggle.classList.remove("hidden");
+});
+
+$chatForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const { message } = $chatForm.elements;
+  const messageContent = message.value.trim();
+
+  if (messageContent) {
+    send({
+      type: "chat-message",
+      uid: uid,
+      message: messageContent,
+    });
+
+    $chatForm.reset();
+  }
+});
+
+$muteButton.addEventListener("click", () => {
   if (!localStream) return;
   const audioTrack = localStream.getAudioTracks()[0];
   if (!audioTrack) return;
 
   isAudioEnabled = !isAudioEnabled;
   audioTrack.enabled = isAudioEnabled;
-  toggleAudio.textContent = isAudioEnabled ? "Disable Audio" : "Enable Audio";
-};
+  $muteButton.textContent = isAudioEnabled ? "Mute" : "Unmute";
+});
 
-toggleVideo.onclick = () => {
+$stopVideoButton.addEventListener("click", () => {
   if (!localStream) return;
   const videoTrack = localStream.getVideoTracks()[0];
   if (!videoTrack) return;
 
   isVideoEnabled = !isVideoEnabled;
   videoTrack.enabled = isVideoEnabled;
-  toggleVideo.textContent = isVideoEnabled ? "Disable Video" : "Enable Video";
-};
+  $stopVideoButton.textContent = isVideoEnabled ? "Stop Video" : "Start Video";
+});
 
 async function startScreenShare() {
   const screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -269,7 +311,7 @@ async function startScreenShare() {
   }
 
   isScreenSharing = true;
-  toggleShareScreen.textContent = "Stop Sharing";
+  $shareScreenButton.textContent = "Stop Sharing";
 
   screenTrack.onended = () => {
     endScreenShare();
@@ -289,50 +331,17 @@ async function endScreenShare() {
   }
 
   isScreenSharing = false;
-  toggleShareScreen.textContent = "Start Sharing";
+  $shareScreenButton.textContent = "Share Screen";
 }
 
-toggleShareScreen.onclick = async () => {
+$shareScreenButton.addEventListener("click", async () => {
   if (!isScreenSharing) {
     try {
       await startScreenShare();
     } catch (error) {
-      console.error("Error sharing screen: ", error);
+      console.error("Error sharing screen", error);
     }
   } else {
     endScreenShare();
   }
-};
-
-chatForm.onsubmit = (event) => {
-  event.preventDefault();
-  const message = chatInput.value;
-
-  if (message.trim()) {
-    send({
-      type: "chat-message",
-      uid: uid,
-      message: message,
-    });
-
-    chatInput.value = "";
-  }
-};
-
-function appendMessage(uid, message) {
-  const p = document.createElement("p");
-  p.innerHTML = `<span>${makeShortId(uid)}</span>: ${message}`;
-  chatBox.appendChild(p);
-  chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-function start() {
-  joinRoomButton.disabled = false;
-  toggleAudio.disabled = false;
-  toggleVideo.disabled = false;
-  toggleShareScreen.disabled = false;
-
-  $("#local-video-title").innerHTML = `<span>${makeShortId(uid)}</span> (you)`;
-}
-
-initLocalStream().then(start);
+});
