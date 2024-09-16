@@ -275,6 +275,8 @@ camada de aplicação. Além disso, ele também abre portas para a exploração 
 melhorias e novas funcionalidades, como otimização de qualidade de vídeo,
 controle avançado de banda e suporte a grandes quantidades de usuários.
 
+A aplicação pode ser acessada em: <https://webrtc.puida.xyz>.
+
 ## Caetano Santos Lucio
 
 Foi um aprendizado interessante e psicologicamente desafiador e caótico, que

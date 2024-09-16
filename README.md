@@ -7,6 +7,8 @@ Para rodar, você precisa ter o [Deno] instalado.
 Então, `deno task dev` inicia o servidor. Você pode acessá-lo em:
 `https://0.0.0.0:8000`
 
+Caso não queira rodar em `https`, use `SECURE=0 deno task dev`.
+
 ## Gerar Certificados
 
 Caso precise gerar novamente os certificados, use [mkcert]:
